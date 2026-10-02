@@ -960,6 +960,14 @@ body.hmode .leaflet-marker-pane .leaflet-marker-icon{pointer-events:none!importa
 .room-poly{cursor:pointer}
 .street-poly{cursor:default}
 .room-tip{font:13px/1.35 system-ui,"Leelawadee UI","Noto Sans Thai",sans-serif}
+/* เป้าเล็ง "ล็อกเป้า" ห้องที่ค้นหา: วงแหวนหดเข้า + ขีดกากบาท 4 ด้าน (ไม่รับเมาส์) */
+.hlock{pointer-events:none!important;background:none!important;border:0!important}
+.hlock i{position:absolute;left:-40px;top:-40px;width:80px;height:80px;box-sizing:border-box;border:3px solid #ff2d55;border-radius:50%;box-shadow:0 0 14px #ff2d55,inset 0 0 10px rgba(255,45,85,.5);animation:hlockpulse 1.2s ease-out infinite}
+.hlock b{position:absolute;background:#ff2d55;box-shadow:0 0 6px #ff2d55}
+.hlock b.t{left:-1.5px;top:-62px;width:3px;height:22px}.hlock b.b{left:-1.5px;top:40px;width:3px;height:22px}
+.hlock b.l{top:-1.5px;left:-62px;height:3px;width:22px}.hlock b.r{top:-1.5px;left:40px;height:3px;width:22px}
+@keyframes hlockpulse{0%{transform:scale(1.7);opacity:0}35%{opacity:1}100%{transform:scale(.85);opacity:.9}}
+@media (prefers-reduced-motion:reduce){.hlock i{animation:none}}
 #hsearch{position:fixed;top:calc(var(--gap) + var(--safe-t));left:calc(var(--gap) + var(--safe-l));width:min(340px,calc(100vw - 570px));min-width:170px;height:46px;align-items:center;padding:0 12px;gap:8px;z-index:1001}
 #hsearch .ic{color:var(--muted);width:20px;height:20px}
 #hsearch input{flex:1;min-width:0;height:100%;border:0;outline:0;background:transparent;color:var(--fg);font:inherit;font-size:15px}
@@ -4610,9 +4618,22 @@ function drawOverlay() {
     poly.bindTooltip(() => tipText(id), { sticky: true, direction: 'top', opacity: 0.96, className: 'room-tip' });
     hovl.addLayer(poly); polyOf[id] = poly;
   }));
+  updateMarks();
 }
-const restyle = id => { const p = polyOf[id]; if (p) { p.setStyle(roomStyle(id)); if (id === curId) p.bringToFront(); } };
-const restyleAll = () => Object.keys(polyOf).forEach(restyle);
+/* ── ไฮไลต์ "ห้องที่เลือก" (ขอบแดงสดหนา เส้นขาวกลาง) + "ล็อกเป้า" ห้องที่ค้นหา (ขอบแดงชมพู + เป้าเล็งกะพริบ) ── */
+const markL = L.layerGroup(); let lockIds = [], lockPt = null;
+function updateMarks() {
+  markL.clearLayers();
+  const ring = (id, halo, col, w, hcol) => { const p = polyOf[id]; if (!p) return; const ll = p.getLatLngs(), base = { renderer: hRend, interactive: false, pmIgnore: true, fill: false, lineJoin: 'round' };
+    if (halo) markL.addLayer(L.polygon(ll, { ...base, color: hcol || '#000', weight: halo, opacity: hcol ? 1 : 0.85 })); markL.addLayer(L.polygon(ll, { ...base, color: col, weight: w, opacity: 1 })); };
+  lockIds.forEach(id => ring(id, 13, '#ff2d55', 9));          // ล็อกเป้า (ผลค้นหา)
+  if (curId) ring(curId, lockIds.includes(curId) ? 0 : 12, '#ffffff', lockIds.includes(curId) ? 3.5 : 6, '#ff0000'); // ห้องที่เลือก (คลิก) = ขอบแดงสดหนา + เส้นขาวตรงกลาง (เด่นบนทุกสีพื้น) — ถ้าล็อกเป้าอยู่ด้วย วงขาวซ้อนในวงแดง
+  if (lockPt) markL.addLayer(L.marker(lockPt, { interactive: false, keyboard: false, zIndexOffset: 900, icon: L.divIcon({ className: 'hlock', html: '<i></i><b class="t"></b><b class="r"></b><b class="b"></b><b class="l"></b>', iconSize: [0, 0] }) }));
+}
+function setLock(ids, pt) { lockIds = ids.filter(id => polyOf[id]); lockPt = lockIds.length ? pt : null; updateMarks(); }
+const clearLock = () => { if (lockIds.length || lockPt) setLock([], null); };
+const restyle = id => { const p = polyOf[id]; if (p) { p.setStyle(roomStyle(id)); if (id === curId) { p.bringToFront(); updateMarks(); } } };
+const restyleAll = () => { Object.keys(polyOf).forEach(id => { const p = polyOf[id]; if (p) p.setStyle(roomStyle(id)); }); updateMarks(); };
 
 /* ── แผงด้านขวา: ภาพรวม / การ์ดห้อง ── */
 let rtab = 'info', dashSig = '';
@@ -4621,7 +4642,7 @@ const stBar = t => '<div class="hbar">' + HSTATUS.filter(s => t[s.id]).map(s => 
 const stChip = id => '<span class="hchip" style="--c:' + HST[id].c + '">' + HST[id].th + '</span>';
 
 function renderDash() {
-  curId = null; restyleAll(); rpEl().hidden = false;
+  curId = null; clearLock(); restyleAll(); rpEl().hidden = false;
   rpHead().innerHTML = '<div class="hh"><b>ภาพรวมบ้านพัก</b><small>' + REG.length + ' อาคาร/หลัง · ' + allIds().length.toLocaleString('en-US') + ' ห้อง</small></div>';
   const t = tally(allIds()), zones = {};
   REG.forEach(b => (zones[b.zone] ||= []).push(b));
@@ -4750,7 +4771,8 @@ function renderRoom() {
 function openRoom(id, tab, fly) {
   const r = ROOM[id]; if (!r) { toast('ไม่พบห้อง ' + id + ' ในผัง'); return; }
   const prev = curId; curId = id; if (tab) rtab = tab; else if (prev !== id) rtab = 'info';
-  if (prev) restyle(prev); restyle(id); renderRoom();
+  if (!fly) clearLock();                                      // คลิกห้องเอง = เลิกล็อกเป้าของการค้นหา
+  if (prev) restyle(prev); restyle(id); updateMarks(); renderRoom();
   if (fly) { const c = roomCenter(r); map.setView(c, Math.max(map.getZoom(), 19), { animate: true }); }
 }
 function mut(id, fn) { const rec = hClone(HData.get(id) || hBlank()); fn(rec); HData.put(id, rec); }
@@ -4909,9 +4931,9 @@ function setHMode(on) {
   $('#hm-plan').classList.toggle('on', !hOn); $('#hm-admin').classList.toggle('on', hOn);
   if (hOn) {
     setMode('select'); select(null, false); closePanel(); closePops();
-    buildReg(); sovl.addTo(map); drawOverlay(); hovl.addTo(map); updateLegend(); renderDash();
+    buildReg(); sovl.addTo(map); drawOverlay(); hovl.addTo(map); markL.addTo(map); updateLegend(); renderDash();
     if (!REG.length) toast('ยังไม่มีสี่เหลี่ยมคอลัมน์บนแผนที่ — นำเข้าไฟล์ผังในโหมดผังก่อน', 4200);
-  } else { map.removeLayer(hovl); map.removeLayer(sovl); curId = null; $('#rpanel').hidden = true; $('#hres').hidden = true; }
+  } else { map.removeLayer(hovl); map.removeLayer(sovl); map.removeLayer(markL); lockIds = []; lockPt = null; curId = null; $('#rpanel').hidden = true; $('#hres').hidden = true; }
 }
 $('#hm-plan').addEventListener('click', () => setHMode(false));
 $('#hm-admin').addEventListener('click', () => setHMode(true));
@@ -4920,11 +4942,11 @@ $('#rpanel').addEventListener('change', hChange);
 $('#hlegend').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; if (b.dataset.a) { hAct(b.dataset.a, b); return; } const f = b.dataset.f || null; hfilter = f && f === hfilter ? null : f; restyleAll(); updateLegend(); });
 $('#hlegend').addEventListener('input', e => { if (e.target.id !== 'hl-fill') return; hFill = e.target.value / 100; store.set('hfill', hFill); restyleAll(); });
 $('#hq').addEventListener('input', e => hSearch(e.target.value));
-$('#hq').addEventListener('keydown', e => { if (e.key === 'Escape') { e.target.value = ''; $('#hres').hidden = true; e.target.blur(); } });
+$('#hq').addEventListener('keydown', e => { if (e.key === 'Escape') { e.target.value = ''; $('#hres').hidden = true; clearLock(); e.target.blur(); } });
 $('#hres').addEventListener('click', e => {
   const b = e.target.closest('button'); if (!b) return; $('#hres').hidden = true;
-  if (b.dataset.id) { openRoom(b.dataset.id, null, true); return; }
-  const bd = REG.find(x => x.name === b.dataset.b); if (bd) { map.fitBounds(L.latLngBounds([bd.f(0, 0), bd.f(1, 1), bd.f(0, 1), bd.f(1, 0)]), { padding: [120, 120], maxZoom: 20 }); openRoom(bd.ids[0]); }
+  if (b.dataset.id) { const id = b.dataset.id; openRoom(id, null, true); if (ROOM[id]) setLock([id], roomCenter(ROOM[id])); return; } // ล็อกเป้าห้องที่ค้นเจอ
+  const bd = REG.find(x => x.name === b.dataset.b); if (bd) { const bb = L.latLngBounds([bd.f(0, 0), bd.f(1, 1), bd.f(0, 1), bd.f(1, 0)]); map.fitBounds(bb, { padding: [120, 120], maxZoom: 20 }); openRoom(bd.ids[0]); setLock(bd.ids, bb.getCenter()); }
 });
 document.addEventListener('keydown', e => { if (hOn && e.key === 'Escape' && curId && !typingNow() && !hPageOpen && !hdOpen) renderDash(); });
 HData.on(id => { if (typeof tblOnData === 'function') tblOnData(id); if (typeof hdOnData === 'function') hdOnData(); if (!hOn) return; if (id) restyle(id); else { restyleAll(); } updateLegend(); if (!curId) renderDash(); else if (!id || (id === curId && !/^(INPUT|TEXTAREA)$/.test(document.activeElement?.tagName))) renderRoom(); });
