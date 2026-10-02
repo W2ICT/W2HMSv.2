@@ -1417,7 +1417,6 @@ body.hviewer #b-import,body.hviewer #b-export,body.hviewer #b-undo,body.hviewer 
   </div>
 </div>
 <!--HOUSING-HTML-->
-<script src="private/housing-seed.js"></script><!-- ข้อมูลเริ่มต้น (ไม่บังคับ — ไม่มีไฟล์ = เริ่มว่าง) -->
 <script>/* ค่าเชื่อมต่อ Firebase (ข้อมูลสาธารณะโดยออกแบบ — ความปลอดภัยมาจาก Authentication + Firestore Rules) ห้ามใส่รหัสผ่านที่นี่ · ลบบล็อกนี้ = โหมดเครื่องเดียว */
 window.HOUSING_CONFIG = {
   firebase: {
@@ -1430,7 +1429,7 @@ window.HOUSING_CONFIG = {
   idleMinutes: 30,
 };
 </script>
-<script src="private/housing-auth.js"></script><!-- ค่าแฮชรหัสผ่านโหมดเครื่องเดียว (ไม่บังคับ) --><!-- ไม่บังคับ: ไม่มีไฟล์นี้ = โหมดเครื่องเดียว -->
+<!-- ไม่บังคับ: ไม่มีไฟล์นี้ = โหมดเครื่องเดียว -->
 <div id="hmode" class="glass" role="group" aria-label="โหมดการใช้งาน">
   <button id="hm-plan" class="on" title="วาด/แก้ไขผังแผนที่">ผัง</button>
   <button id="hm-admin" title="บริหารบ้านพัก: คลิกห้องเพื่อดู/บันทึกข้อมูล">บริหาร</button>
