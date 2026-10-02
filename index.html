@@ -4574,15 +4574,19 @@ const allIds = () => REG.flatMap(b => b.ids);
 
 /* ── เลเยอร์ระบายสีห้อง ── */
 const hovl = L.layerGroup(), sovl = L.layerGroup(), hRend = L.canvas({ padding: 0.4, tolerance: 4 }); let polyOf = {}, curId = null, hfilter = null, hOn = false;
+const stayTags = s => (s && Array.isArray(s.tags) ? s.tags : []);                // แท็กของผู้พัก (เช่น "ชนอ.") — ติดกับตัวบุคคล ไม่ใช่ห้อง
+const tagList = v => [...new Set(String(v || '').split(/[,،;]/).map(x => x.trim()).filter(Boolean))];
+const isTagF = f => typeof f === 'string' && f.startsWith('tag:');
+const matchF = (id, f) => isTagF(f) ? stayTags(curStay(HData.get(id))).includes(f.slice(4)) : roomStatus(id) === f; // ตัวกรองสถานะ หรือ tag:<ชื่อแท็ก>
 function roomStyle(id) {
-  const st = roomStatus(id), dim = hfilter && st !== hfilter, sel = id === curId;
+  const st = roomStatus(id), dim = hfilter && !matchF(id, hfilter), sel = id === curId;
   // ทุกห้องมีสีพื้นตามสถานะ · "ยังไม่ระบุ" = เทาอ่อน (จางกว่า) · ห้องที่ถูกกรองออกจางมาก
   return { color: sel ? '#facc15' : '#ffffff', weight: sel ? 3.5 : 0.8, opacity: sel ? 1 : 0.8, fillColor: st === 'unknown' ? '#e5e7eb' : HST[st].c,
     fillOpacity: dim ? 0.06 : st === 'unknown' ? hFill * 0.4 : hFill };
 }
 function tipText(id) {
   const rec = HData.get(id), s = curStay(rec), st = HST[rec?.status || 'vacant'];
-  return '<b>' + esc(id) + '</b> · ' + st.th + (s ? '<br>' + esc((s.rank ? s.rank + ' ' : '') + s.name) : '') + (openMaint(rec) ? '<br>งานซ่อมค้าง ' + openMaint(rec) : '');
+  return '<b>' + esc(id) + '</b> · ' + st.th + (s ? '<br>' + esc((s.rank ? s.rank + ' ' : '') + s.name) + (stayTags(s).length ? ' · ' + esc(stayTags(s).join(', ')) : '') : '') + (openMaint(rec) ? '<br>งานซ่อมค้าง ' + openMaint(rec) : '');
 }
 /* ถนน/ซอย: สี่เหลี่ยมที่ชื่อขึ้นต้น "ซอย"/"ซ." → ชี้เมาส์แล้วเห็นชื่อ (เลเยอร์โปร่งใส คลิก/ลากไม่ได้ กันแก้ผังพลาด) */
 function drawStreets() {
@@ -4672,7 +4676,7 @@ function renderRoom() {
       '<label class="fld"><span>หมายเหตุห้อง</span><textarea rows="3" data-k="note">' + esc(rec.note) + '</textarea></label>' +
       '<label class="check"><input type="checkbox" data-k="checked"' + (rec.checked ? ' checked' : '') + '> ตรวจสอบข้อมูลห้องนี้แล้ว</label>' +
       '<label class="check"><input type="checkbox" data-k="submitted"' + (rec.submitted ? ' checked' : '') + '> ส่งข้อมูลบุคคลแล้ว</label>';
-    h += '<dl class="hdl"><dt>ผู้พักปัจจุบัน</dt><dd>' + (cs ? esc((cs.rank ? cs.rank + ' ' : '') + cs.name) : '-') + '</dd><dt>งานซ่อมค้าง</dt><dd>' + nMaint + '</dd><dt>ผู้พักที่ผ่านมา</dt><dd>' + rec.stays.filter(s => s.out).length + ' ราย</dd><dt>อัปเดตล่าสุด</dt><dd>' + (rec.upd ? thDate(rec.upd) : '-') + '</dd></dl>' +
+    h += '<dl class="hdl"><dt>ผู้พักปัจจุบัน</dt><dd>' + (cs ? esc((cs.rank ? cs.rank + ' ' : '') + cs.name) + stayTags(cs).map(t => ' <span class="badge">' + esc(t) + '</span>').join('') : '-') + '</dd><dt>งานซ่อมค้าง</dt><dd>' + nMaint + '</dd><dt>ผู้พักที่ผ่านมา</dt><dd>' + rec.stays.filter(s => s.out).length + ' ราย</dd><dt>อัปเดตล่าสุด</dt><dd>' + (rec.upd ? thDate(rec.upd) : '-') + '</dd></dl>' +
       (HData.remote && hRole === 'admin' ? '<button class="btn txt" data-a="audit">ดูบันทึกการแก้ไขห้องนี้</button><div id="haudit"></div>' : '');
   } else if (rtab === 'who') {
     if (cs) {
@@ -4685,6 +4689,7 @@ function renderRoom() {
         '<label class="fld"><span>โทรศัพท์</span><input type="text" inputmode="tel" data-sk="phone" value="' + esc(cs.phone) + '"></label>' +
         '<label class="fld"><span>ผู้อาศัยร่วม (คน ไม่รวมผู้พักหลัก)</span><input type="text" inputmode="numeric" data-sk="family" value="' + esc(cs.family) + '"></label>' +
         '<label class="fld"><span>วันที่เข้าพัก</span><input type="date" data-sk="in" value="' + esc(cs.in) + '"></label>' +
+        '<label class="fld"><span>แท็ก (คั่นด้วย , เช่น ชนอ.)</span><input type="text" data-sk="tags" value="' + esc(stayTags(cs).join(', ')) + '"></label>' +
         '<label class="fld"><span>หมายเหตุ</span><textarea rows="2" data-sk="note">' + esc(cs.note) + '</textarea></label></div>' +
         '<div class="hcard out"><div class="hcap">ย้ายออก</div><label class="fld"><span>วันที่ย้ายออก</span><input type="date" id="ho-date" value="' + hToday() + '"></label>' +
         '<label class="fld"><span>เหตุผล</span><input type="text" id="ho-why" placeholder="เช่น ย้ายหน่วย / เกษียณ / คืนบ้านพัก"></label>' +
@@ -4827,7 +4832,7 @@ function bakIn(text) {
 }
 
 /* ── CSV ── */
-const CSV_H = ['รหัสห้อง', 'อาคาร', 'เลขห้อง', 'เขต', 'สถานะ', 'ประเภท', 'ยศ', 'ชื่อ-สกุลผู้พัก', 'ตำแหน่ง', 'สังกัด', 'หน่วยรอง', 'โทร', 'ผู้อาศัยร่วม', 'วันที่เข้าพัก', 'งานซ่อมค้าง', 'ตรวจสอบแล้ว', 'ส่งข้อมูลบุคคล', 'หมายเหตุ', 'แถวเดิม'];
+const CSV_H = ['รหัสห้อง', 'อาคาร', 'เลขห้อง', 'เขต', 'สถานะ', 'ประเภท', 'ยศ', 'ชื่อ-สกุลผู้พัก', 'ตำแหน่ง', 'สังกัด', 'หน่วยรอง', 'โทร', 'ผู้อาศัยร่วม', 'วันที่เข้าพัก', 'งานซ่อมค้าง', 'ตรวจสอบแล้ว', 'ส่งข้อมูลบุคคล', 'หมายเหตุ', 'แถวเดิม', 'แท็ก'];
 const csvCell = v => { v = String(v ?? ''); return /[",\r\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
 function csvOutHH(kind) { // ผู้อาศัยร่วม / ยานพาหนะ รายแถว (ผูกกับรหัสห้อง) — ข้อมูลบุคคล/สุขภาพ ใช้เฉพาะผู้มีสิทธิ์แก้ไข
   const rows = [kind === 'members' ? ['รหัสห้อง', 'ชื่อ-สกุล', 'อายุ', 'โรค/สุขภาพ', 'ติดเตียง'] : ['รหัสห้อง', 'ประเภท', 'ทะเบียน', 'จังหวัด']];
@@ -4841,7 +4846,7 @@ function csvOut() {
   const rows = [CSV_H];
   REG.forEach(b => b.ids.forEach((id, k) => {
     const rec = HData.get(id) || hBlank(), s = curStay(rec) || {};
-    rows.push([id, b.single ? 'บ้านเดี่ยว' : b.name, k + 1, b.zone, HST[rec.status].th, rec.type, s.rank, s.name, s.position, s.unit, s.subunit, s.phone, s.family, s.in, openMaint(rec), rec.checked ? 'ใช่' : '', rec.submitted ? 'ใช่' : '', rec.note, legacyOf(b.name)]);
+    rows.push([id, b.single ? 'บ้านเดี่ยว' : b.name, k + 1, b.zone, HST[rec.status].th, rec.type, s.rank, s.name, s.position, s.unit, s.subunit, s.phone, s.family, s.in, openMaint(rec), rec.checked ? 'ใช่' : '', rec.submitted ? 'ใช่' : '', rec.note, legacyOf(b.name), stayTags(s).join(', ')]);
   }));
   download('housing-rooms-' + hToday() + '.csv', '﻿' + rows.map(r => r.map(csvCell).join(',')).join('\r\n'), 'text/csv;charset=utf-8');
   toast('ส่งออก ' + (rows.length - 1) + ' ห้อง');
@@ -4850,16 +4855,21 @@ function csvOut() {
 function hChange(e) {
   const t = e.target, id = curId; if (!id) return;
   if (t.dataset.k) mut(id, r => { r[t.dataset.k] = t.type === 'checkbox' ? t.checked : t.value.trim(); });
-  else if (t.dataset.sk) mut(id, r => { const s = curStay(r); if (s) s[t.dataset.sk] = t.value.trim(); });
+  else if (t.dataset.sk) mut(id, r => { const s = curStay(r); if (s) s[t.dataset.sk] = t.dataset.sk === 'tags' ? tagList(t.value) : t.value.trim(); });
   else return;
   updateLegend(); if (t.dataset.sk === 'name' || t.dataset.sk === 'rank') renderRoom();
 }
 
 /* ── คำอธิบายสถานะ (ซ้าย) + ค้นหา ── */
+function tagCounts() { // แท็กที่ใช้อยู่ของผู้พักปัจจุบัน → [[แท็ก, จำนวนห้อง]]
+  const m = {}; Object.entries(HData.all()).forEach(([id, rec]) => { if (ROOM[id]) stayTags(curStay(rec)).forEach(g => { m[g] = (m[g] || 0) + 1; }); });
+  return Object.entries(m).sort((a, b) => b[1] - a[1]);
+}
 function updateLegend() {
   if (!hOn) return; const t = tally(allIds());
   $('#hlegend').innerHTML = '<div class="hl-h">สถานะห้อง <button data-f="" class="' + (hfilter ? '' : 'on') + '">ทั้งหมด ' + t.total.toLocaleString('en-US') + '</button></div>' +
     HSTATUS.map(s => '<button data-f="' + s.id + '" class="' + (hfilter === s.id ? 'on' : '') + '"><span class="dot" style="background:' + s.c + '"></span>' + s.th + '<b>' + t[s.id].toLocaleString('en-US') + '</b></button>').join('') +
+    tagCounts().map(([g, n]) => '<button data-f="tag:' + esc(g) + '" class="' + (hfilter === 'tag:' + g ? 'on' : '') + '" title="เน้นห้องของผู้พักที่มีแท็กนี้"><span class="dot" style="background:#a855f7"></span>แท็ก ' + esc(g) + '<b>' + n.toLocaleString('en-US') + '</b></button>').join('') +
     '<label class="hl-op">ความทึบสีห้อง <input type="range" id="hl-fill" min="15" max="90" step="5" value="' + Math.round(hFill * 100) + '"></label>' +
     '<button class="hl-tbl" data-a="table">ตารางข้อมูล (หลังบ้าน)</button>';
 }
@@ -4871,7 +4881,7 @@ function hSearch(q) {
   Object.keys(ROOM).forEach(id => { if (out.length < 40 && (id.toLowerCase().includes(q) || (ROOM[id].b.single && legacyOf(id) === q)) && !REG.some(b => !b.single && b.name.toLowerCase() === q)) out.push({ t: 'r', id }); });
   Object.entries(HData.all()).forEach(([id, rec]) => {
     const s = curStay(rec); if (!s || !ROOM[id]) return;
-    if ((s.name + ' ' + (s.rank || '') + ' ' + (s.position || '') + ' ' + (s.unit || '') + ' ' + (s.subunit || '')).toLowerCase().includes(q)) out.push({ t: 'p', id, s });
+    if ((s.name + ' ' + (s.rank || '') + ' ' + (s.position || '') + ' ' + (s.unit || '') + ' ' + (s.subunit || '') + ' ' + stayTags(s).join(' ')).toLowerCase().includes(q)) out.push({ t: 'p', id, s });
     (s.vehicles || []).forEach(v => { if ((v.plate + ' ' + (v.prov || '')).toLowerCase().includes(q)) out.push({ t: 'v', id, v, s }); }); // ค้นด้วยทะเบียนรถ
     (s.members || []).forEach(m => { if (m.name.toLowerCase().includes(q)) out.push({ t: 'm', id, m, s }); });                               // ค้นด้วยชื่อผู้อาศัยร่วม (ไม่ค้นโรค/สุขภาพ)
   });
@@ -4924,7 +4934,7 @@ const CSV_COLS = {
   name: ['ชื่อ-สกุลผู้พัก', 'ชื่อ-สกุล', 'ชื่อผู้พัก', 'ผู้พัก', 'ชื่อ', 'name'], rank: ['ยศ', 'ยศ/ตำแหน่ง', 'rank'], position: ['ตำแหน่ง', 'position'],
   unit: ['สังกัด', 'หน่วยหลัก', 'unit'], subunit: ['หน่วยรอง', 'subunit'], phone: ['โทร', 'โทรศัพท์', 'เบอร์โทร', 'phone'],
   family: ['ผู้อาศัยร่วม', 'สมาชิกในครอบครัว', 'ครอบครัว', 'family'], in: ['วันที่เข้าพัก', 'เข้าพัก', 'วันที่เข้า', 'in'], note: ['หมายเหตุ', 'note'],
-  checked: ['ตรวจสอบแล้ว', 'ตรวจแล้ว', 'checked'], submitted: ['ส่งข้อมูลบุคคล', 'ส่งข้อมูลแล้ว', 'submitted'],
+  checked: ['ตรวจสอบแล้ว', 'ตรวจแล้ว', 'checked'], submitted: ['ส่งข้อมูลบุคคล', 'ส่งข้อมูลแล้ว', 'submitted'], tags: ['แท็ก', 'tags', 'tag'],
 };
 const CSV_MEM = { code: CSV_COLS.code, name: ['ชื่อ-สกุล', 'ชื่อ', 'name'], age: ['อายุ', 'age'], disease: ['โรค/สุขภาพ', 'โรค', 'โรคประจำตัว', 'disease'], bed: ['ติดเตียง', 'bed'] };
 const CSV_VEH = { code: CSV_COLS.code, type: ['ประเภท', 'type'], plate: ['ทะเบียน', 'plate'], prov: ['จังหวัด', 'prov'] };
@@ -4998,6 +5008,7 @@ function planRooms(body, col, res, ctx) {
     const sTxt = get('status'); if (sTxt) { const k = ST_SYN[nz(sTxt)]; if (!k) { err('สถานะ "' + sTxt + '" ไม่รู้จัก (ใช้: ยังไม่ระบุ / ว่าง / มีผู้พัก / ซ่อมบำรุง / ปิดใช้งาน)'); return; } f.status = k; }
     const dTxt = get('in'); if (dTxt) { const d = csvDate(dTxt); if (!d) { err('วันที่เข้าพัก "' + dTxt + '" ไม่ถูกต้อง (ใช้ วว/ดด/ปปปป เช่น 15/03/2565)'); return; } f.in = d; }
     ['type', 'note', 'name', 'rank', 'position', 'unit', 'subunit', 'family'].forEach(k => { const v = get(k); if (v) f[k] = v; });
+    const tg = tagList(get('tags')); if (tg.length) f.tags = tg; // แท็กในไฟล์ แทนที่แท็กเดิมของผู้พักปัจจุบัน (เว้นว่าง = ไม่แตะ)
     ['checked', 'submitted'].forEach(k => { const v = get(k); if (!v) return; if (csvYes(v)) f[k] = true; else if (csvNo(v)) f[k] = false; else warn('"' + v + '" ในคอลัมน์ ' + (k === 'checked' ? 'ตรวจสอบแล้ว' : 'ส่งข้อมูลบุคคล') + ' ไม่รู้จัก (ใช้ ใช่ / ไม่) — ข้าม'); });
     const ph = get('phone'); if (ph) { f.phone = fixPhone(ph); if (f.phone !== ph) warn('เติม 0 หน้าเบอร์โทร "' + ph + '" → ' + f.phone + ' (Excel ตัดศูนย์ออก)'); }
     if (['vacant', 'closed'].includes(f.status) && f.name) { err('สถานะ "' + HST[f.status].th + '" แต่มีชื่อผู้พัก — ตรวจแถวนี้'); return; }
@@ -5054,8 +5065,8 @@ function applyPlan(plan) { // เขียนข้อมูลจริง (ไ
       if (cur && cur.name !== f.name) { cur.out = f.in || today; cur.reason = 'เปลี่ยนผู้พัก (นำเข้า CSV)'; }
       let s = curStay(rec);
       if (!s) { s = hNewStay({ name: f.name, in: f.in || '' }); rec.stays.push(s); if (!f.status) rec.status = 'occupied'; } // ไม่มีวันที่ = ไม่ทราบ (ไม่ใส่วันนี้)
-      FIELDS.forEach(k => { if (f[k] !== undefined) s[k] = f[k]; }); if (f.in) s.in = f.in;
-    } else if (cur) { FIELDS.forEach(k => { if (f[k] !== undefined) cur[k] = f[k]; }); if (f.in) cur.in = f.in; }
+      FIELDS.forEach(k => { if (f[k] !== undefined) s[k] = f[k]; }); if (f.in) s.in = f.in; if (f.tags) s.tags = f.tags;
+    } else if (cur) { FIELDS.forEach(k => { if (f[k] !== undefined) cur[k] = f[k]; }); if (f.in) cur.in = f.in; if (f.tags) cur.tags = f.tags; }
     if (f.status) rec.status = f.status;
     changed[id] = rec;
   });
@@ -5114,7 +5125,7 @@ const tIds = () => {
   return allIds().filter(id => {
     const r = ROOM[id]; if (T.zone && r.b.zone !== T.zone) return false;
     const st = roomStatus(id); if (T.st && st !== T.st) return false;
-    if (q) { const s = curStay(HData.get(id)) || {}; if (!(id + ' ' + (s.name || '') + ' ' + (s.unit || '') + ' ' + (s.subunit || '') + ' ' + (s.rank || '') + ' ' + (s.position || '') + ' ' + ((HData.get(id) || {}).note || '')).toLowerCase().includes(q)) return false; }
+    if (q) { const s = curStay(HData.get(id)) || {}; if (!(id + ' ' + (s.name || '') + ' ' + (s.unit || '') + ' ' + (s.subunit || '') + ' ' + (s.rank || '') + ' ' + (s.position || '') + ' ' + stayTags(s).join(' ') + ' ' + ((HData.get(id) || {}).note || '')).toLowerCase().includes(q)) return false; }
     return true;
   });
 };
@@ -5126,20 +5137,20 @@ function tRow(id) {
     '<td>' + esc(r.b.single ? 'บ้านเดี่ยว' : r.b.name) + '</td><td>' + esc(r.b.zone) + '</td>' +
     '<td><select data-id="' + esc(id) + '" data-f="status"' + dis + '>' + HSTATUS.map(x => '<option value="' + x.id + '"' + (x.id === rec.status ? ' selected' : '') + '>' + x.th + '</option>').join('') + '</select></td>' +
     '<td>' + inp('type', rec.type, '', 130) + '</td><td>' + inp('rank', s.rank, '', 90, 'dl-rank') + '</td><td>' + inp('name', s.name, '', 170) + '</td><td>' + inp('position', s.position, '', 130) + '</td><td>' + inp('unit', s.unit, '', 130, 'dl-unit') + '</td><td>' + inp('subunit', s.subunit, '', 110, 'dl-sub') + '</td>' +
-    '<td>' + inp('phone', s.phone, '', 105) + '</td><td>' + inp('family', s.family, '', 60) + '</td><td>' + inp('in', s.in, 'date') + '</td>' +
+    '<td>' + inp('phone', s.phone, '', 105) + '</td><td>' + inp('family', s.family, '', 60) + '</td><td>' + inp('in', s.in, 'date') + '</td><td>' + inp('tags', stayTags(s).join(', '), '', 90) + '</td>' +
     '<td class="tc-v">' + (((s.vehicles || []).length) || '') + '</td><td class="tc-n">' + (openMaint(rec) || '') + '</td><td class="tc-c">' + chk('checked', rec.checked) + '</td><td class="tc-c">' + chk('submitted', rec.submitted) + '</td><td>' + inp('note', rec.note, '', 180) + '</td></tr>';
 }
 function tRender() {
   const ids = tIds(), pages = Math.max(1, Math.ceil(ids.length / T.size)); T.page = Math.min(T.page, pages - 1);
   const from = T.page * T.size, view = ids.slice(from, from + T.size);
-  $('#ttab').innerHTML = '<thead><tr>' + ['รหัสห้อง', 'อาคาร', 'เขต', 'สถานะ', 'ประเภท', 'ยศ', 'ชื่อ-สกุลผู้พัก', 'ตำแหน่ง', 'หน่วยหลัก', 'หน่วยรอง', 'โทร', 'ผู้อาศัยร่วม', 'วันที่เข้าพัก', 'รถ', 'ซ่อม', 'ตรวจแล้ว', 'ส่งข้อมูล', 'หมายเหตุ'].map(h => '<th>' + h + '</th>').join('') + '</tr></thead><tbody>' + view.map(tRow).join('') + '</tbody>';
+  $('#ttab').innerHTML = '<thead><tr>' + ['รหัสห้อง', 'อาคาร', 'เขต', 'สถานะ', 'ประเภท', 'ยศ', 'ชื่อ-สกุลผู้พัก', 'ตำแหน่ง', 'หน่วยหลัก', 'หน่วยรอง', 'โทร', 'ผู้อาศัยร่วม', 'วันที่เข้าพัก', 'แท็ก', 'รถ', 'ซ่อม', 'ตรวจแล้ว', 'ส่งข้อมูล', 'หมายเหตุ'].map(h => '<th>' + h + '</th>').join('') + '</tr></thead><tbody>' + view.map(tRow).join('') + '</tbody>';
   $('#tcount').textContent = ids.length ? 'แสดง ' + (from + 1) + '–' + (from + view.length) + ' จาก ' + ids.length.toLocaleString('en-US') + ' ห้อง' : 'ไม่พบห้อง';
   $('#tpg').textContent = 'หน้า ' + (T.page + 1) + '/' + pages; $('#tprev').disabled = T.page <= 0; $('#tnext').disabled = T.page >= pages - 1;
   $('#tbulkbar').hidden = !hCanEdit();
 }
 function tSync(id) { // อัปเดตค่าในแถวที่เปิดอยู่ โดยไม่แย่งโฟกัส
   const tr = $('#ttab tr[data-row="' + CSS.escape(id) + '"]'); if (!tr) return;
-  const rec = HData.get(id) || hBlank(), s = curStay(rec) || {}, v = { status: rec.status, type: rec.type, note: rec.note, name: s.name, rank: s.rank, position: s.position, unit: s.unit, subunit: s.subunit, phone: s.phone, family: s.family, in: s.in };
+  const rec = HData.get(id) || hBlank(), s = curStay(rec) || {}, v = { status: rec.status, type: rec.type, note: rec.note, name: s.name, rank: s.rank, position: s.position, unit: s.unit, subunit: s.subunit, phone: s.phone, family: s.family, in: s.in, tags: stayTags(s).join(', ') };
   tr.style.setProperty('--c', HST[rec.status].c);
   $$('[data-f]', tr).forEach(el => { if (el === document.activeElement) return; if (el.type === 'checkbox') el.checked = !!rec[el.dataset.f]; else el.value = v[el.dataset.f] || ''; });
   $('.tc-n', tr).textContent = openMaint(rec) || ''; $('.tc-v', tr).textContent = (s.vehicles || []).length || '';
@@ -5157,7 +5168,7 @@ function tChange(e) {
     mut(id, r => { r.stays.push(hNewStay({ name: v, in: hToday() })); r.status = 'occupied'; });
   } else if (f === 'name' && !v) { toast('ล้างชื่อไม่ได้ — ย้ายออกที่การ์ดห้อง (เพื่อเก็บประวัติ)'); t.value = cs.name; return; }
   else if (f === 'in') { const d = csvDate(v) || v; if (!/^\d{4}-\d\d-\d\d$/.test(d)) { t.value = cs.in || ''; return; } mut(id, r => { curStay(r).in = d; }); }
-  else mut(id, r => { curStay(r)[f] = f === 'phone' ? fixPhone(v) : v; });
+  else mut(id, r => { curStay(r)[f] = f === 'phone' ? fixPhone(v) : f === 'tags' ? tagList(v) : v; });
   updateLegend();
 }
 function openPage() {
