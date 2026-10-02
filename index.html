@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#1c1e22">
-<title>GIS Sketch — วาดแผนที่</title>
+<title>WING 2 HMS v.3</title>
 <style>/* required styles */
 
 .leaflet-pane,
@@ -4576,11 +4576,13 @@ const allIds = () => REG.flatMap(b => b.ids);
 const hovl = L.layerGroup(), sovl = L.layerGroup(), hRend = L.canvas({ padding: 0.4, tolerance: 4 }); let polyOf = {}, curId = null, hfilter = null, hOn = false;
 const stayTags = s => (s && Array.isArray(s.tags) ? s.tags : []);                // แท็กของผู้พัก (เช่น "ชนอ.") — ติดกับตัวบุคคล ไม่ใช่ห้อง
 const tagList = v => [...new Set(String(v || '').split(/[,،;]/).map(x => x.trim()).filter(Boolean))];
+const tagLabel = g => g === 'ชนอ.' ? 'ชนอ.ฐานบินฯ' : g; // ชื่อที่แสดง (ค่าที่เก็บในข้อมูลยังเป็น "ชนอ." เพื่อให้ข้อมูล/CSV เดิมใช้ได้)
 const isTagF = f => typeof f === 'string' && f.startsWith('tag:');
 const matchF = (id, f) => isTagF(f) ? stayTags(curStay(HData.get(id))).includes(f.slice(4)) : roomStatus(id) === f; // ตัวกรองสถานะ หรือ tag:<ชื่อแท็ก>
 function roomStyle(id) {
   const st = roomStatus(id), dim = hfilter && !matchF(id, hfilter), sel = id === curId;
   // ทุกห้องมีสีพื้นตามสถานะ · "ยังไม่ระบุ" = เทาอ่อน (จางกว่า) · ห้องที่ถูกกรองออกจางมาก
+  if (isTagF(hfilter) && !dim) return { color: sel ? '#facc15' : '#eaffd0', weight: sel ? 3.5 : 1.6, opacity: 1, fillColor: '#39ff14', fillOpacity: 0.9 }; // ห้องที่มีแท็กที่เลือก = เขียวสะท้อนแสง
   return { color: sel ? '#facc15' : '#ffffff', weight: sel ? 3.5 : 0.8, opacity: sel ? 1 : 0.8, fillColor: st === 'unknown' ? '#e5e7eb' : HST[st].c,
     fillOpacity: dim ? 0.06 : st === 'unknown' ? hFill * 0.4 : hFill };
 }
@@ -4676,7 +4678,7 @@ function renderRoom() {
       '<label class="fld"><span>หมายเหตุห้อง</span><textarea rows="3" data-k="note">' + esc(rec.note) + '</textarea></label>' +
       '<label class="check"><input type="checkbox" data-k="checked"' + (rec.checked ? ' checked' : '') + '> ตรวจสอบข้อมูลห้องนี้แล้ว</label>' +
       '<label class="check"><input type="checkbox" data-k="submitted"' + (rec.submitted ? ' checked' : '') + '> ส่งข้อมูลบุคคลแล้ว</label>';
-    h += '<dl class="hdl"><dt>ผู้พักปัจจุบัน</dt><dd>' + (cs ? esc((cs.rank ? cs.rank + ' ' : '') + cs.name) + stayTags(cs).map(t => ' <span class="badge">' + esc(t) + '</span>').join('') : '-') + '</dd><dt>งานซ่อมค้าง</dt><dd>' + nMaint + '</dd><dt>ผู้พักที่ผ่านมา</dt><dd>' + rec.stays.filter(s => s.out).length + ' ราย</dd><dt>อัปเดตล่าสุด</dt><dd>' + (rec.upd ? thDate(rec.upd) : '-') + '</dd></dl>' +
+    h += '<dl class="hdl"><dt>ผู้พักปัจจุบัน</dt><dd>' + (cs ? esc((cs.rank ? cs.rank + ' ' : '') + cs.name) + stayTags(cs).map(t => ' <span class="badge">' + esc(tagLabel(t)) + '</span>').join('') : '-') + '</dd><dt>งานซ่อมค้าง</dt><dd>' + nMaint + '</dd><dt>ผู้พักที่ผ่านมา</dt><dd>' + rec.stays.filter(s => s.out).length + ' ราย</dd><dt>อัปเดตล่าสุด</dt><dd>' + (rec.upd ? thDate(rec.upd) : '-') + '</dd></dl>' +
       (HData.remote && hRole === 'admin' ? '<button class="btn txt" data-a="audit">ดูบันทึกการแก้ไขห้องนี้</button><div id="haudit"></div>' : '');
   } else if (rtab === 'who') {
     if (cs) {
@@ -4689,7 +4691,8 @@ function renderRoom() {
         '<label class="fld"><span>โทรศัพท์</span><input type="text" inputmode="tel" data-sk="phone" value="' + esc(cs.phone) + '"></label>' +
         '<label class="fld"><span>ผู้อาศัยร่วม (คน ไม่รวมผู้พักหลัก)</span><input type="text" inputmode="numeric" data-sk="family" value="' + esc(cs.family) + '"></label>' +
         '<label class="fld"><span>วันที่เข้าพัก</span><input type="date" data-sk="in" value="' + esc(cs.in) + '"></label>' +
-        '<label class="fld"><span>แท็ก (คั่นด้วย , เช่น ชนอ.)</span><input type="text" data-sk="tags" value="' + esc(stayTags(cs).join(', ')) + '"></label>' +
+        '<label class="check"><input type="checkbox" data-tagck="ชนอ."' + (stayTags(cs).includes('ชนอ.') ? ' checked' : '') + '> เป็น <b>ชนอ.ฐานบินฯ</b></label>' +
+        '<label class="fld"><span>แท็กอื่นๆ (คั่นด้วย ,)</span><input type="text" data-sk="tags" value="' + esc(stayTags(cs).filter(g => g !== 'ชนอ.').join(', ')) + '"></label>' +
         '<label class="fld"><span>หมายเหตุ</span><textarea rows="2" data-sk="note">' + esc(cs.note) + '</textarea></label></div>' +
         '<div class="hcard out"><div class="hcap">ย้ายออก</div><label class="fld"><span>วันที่ย้ายออก</span><input type="date" id="ho-date" value="' + hToday() + '"></label>' +
         '<label class="fld"><span>เหตุผล</span><input type="text" id="ho-why" placeholder="เช่น ย้ายหน่วย / เกษียณ / คืนบ้านพัก"></label>' +
@@ -4704,6 +4707,7 @@ function renderRoom() {
         '<label class="fld"><span>โทรศัพท์</span><input type="text" inputmode="tel" id="hi-phone"></label>' +
         '<label class="fld"><span>ผู้อาศัยร่วม (คน ไม่รวมผู้พักหลัก)</span><input type="text" inputmode="numeric" id="hi-family"></label>' +
         '<label class="fld"><span>วันที่เข้าพัก</span><input type="date" id="hi-in" value="' + hToday() + '"></label>' +
+        '<label class="check"><input type="checkbox" id="hi-chanor"> เป็น <b>ชนอ.ฐานบินฯ</b></label>' +
         '<button class="btn txt prim" data-a="checkin">รับเข้าพัก</button></div>';
     }
   } else if (rtab === 'hh') {
@@ -4770,7 +4774,7 @@ function hAct(a, el) {
   if (a === 'checkin') {
     const name = $('#hi-name').value.trim(); if (!name) { toast('กรุณากรอกชื่อ-สกุล'); $('#hi-name').focus(); return; }
     mut(id, r => {
-      r.stays.push(hNewStay({ name, rank: $('#hi-rank').value.trim(), position: $('#hi-position').value.trim(), unit: $('#hi-unit').value.trim(), subunit: $('#hi-subunit').value.trim(), phone: $('#hi-phone').value.trim(), family: $('#hi-family').value.trim(), in: $('#hi-in').value || hToday() }));
+      r.stays.push(hNewStay({ name, rank: $('#hi-rank').value.trim(), position: $('#hi-position').value.trim(), unit: $('#hi-unit').value.trim(), subunit: $('#hi-subunit').value.trim(), phone: $('#hi-phone').value.trim(), family: $('#hi-family').value.trim(), in: $('#hi-in').value || hToday(), tags: $('#hi-chanor').checked ? ['ชนอ.'] : [] }));
       r.status = 'occupied';
     });
     toast('รับเข้าพักแล้ว'); rtab = 'who'; afterChange(id); return;
@@ -4855,9 +4859,12 @@ function csvOut() {
 function hChange(e) {
   const t = e.target, id = curId; if (!id) return;
   if (t.dataset.k) mut(id, r => { r[t.dataset.k] = t.type === 'checkbox' ? t.checked : t.value.trim(); });
-  else if (t.dataset.sk) mut(id, r => { const s = curStay(r); if (s) s[t.dataset.sk] = t.dataset.sk === 'tags' ? tagList(t.value) : t.value.trim(); });
+  else if (t.dataset.tagck) mut(id, r => { const s = curStay(r); if (s) { const g = t.dataset.tagck, l = stayTags(s).filter(x => x !== g); s.tags = t.checked ? [g, ...l] : l; } }); // ติ๊ก/ยกเลิกแท็กเดี่ยว (เช่น ชนอ.)
+  else if (t.dataset.sk === 'tags') mut(id, r => { const s = curStay(r); if (s) s.tags = [...stayTags(s).filter(x => x === 'ชนอ.'), ...tagList(t.value).filter(x => x !== 'ชนอ.')]; }); // ช่องแท็กอื่น ไม่แตะ ชนอ.
+  else if (t.dataset.sk) mut(id, r => { const s = curStay(r); if (s) s[t.dataset.sk] = t.value.trim(); });
   else return;
-  updateLegend(); if (t.dataset.sk === 'name' || t.dataset.sk === 'rank') renderRoom();
+  updateLegend(); if (t.dataset.sk === 'name' || t.dataset.sk === 'rank' || t.dataset.tagck) renderRoom();
+  if (isTagF(hfilter)) restyleAll();
 }
 
 /* ── คำอธิบายสถานะ (ซ้าย) + ค้นหา ── */
@@ -4869,7 +4876,7 @@ function updateLegend() {
   if (!hOn) return; const t = tally(allIds());
   $('#hlegend').innerHTML = '<div class="hl-h">สถานะห้อง <button data-f="" class="' + (hfilter ? '' : 'on') + '">ทั้งหมด ' + t.total.toLocaleString('en-US') + '</button></div>' +
     HSTATUS.map(s => '<button data-f="' + s.id + '" class="' + (hfilter === s.id ? 'on' : '') + '"><span class="dot" style="background:' + s.c + '"></span>' + s.th + '<b>' + t[s.id].toLocaleString('en-US') + '</b></button>').join('') +
-    tagCounts().map(([g, n]) => '<button data-f="tag:' + esc(g) + '" class="' + (hfilter === 'tag:' + g ? 'on' : '') + '" title="เน้นห้องของผู้พักที่มีแท็กนี้"><span class="dot" style="background:#a855f7"></span>แท็ก ' + esc(g) + '<b>' + n.toLocaleString('en-US') + '</b></button>').join('') +
+    tagCounts().map(([g, n]) => '<button data-f="tag:' + esc(g) + '" class="' + (hfilter === 'tag:' + g ? 'on' : '') + '" title="เน้นห้องของผู้พักที่มีแท็กนี้"><span class="dot" style="background:' + (g === 'ชนอ.' ? '#39ff14' : '#a855f7') + '"></span>' + esc(tagLabel(g)) + '<b>' + n.toLocaleString('en-US') + '</b></button>').join('') +
     '<label class="hl-op">ความทึบสีห้อง <input type="range" id="hl-fill" min="15" max="90" step="5" value="' + Math.round(hFill * 100) + '"></label>' +
     '<button class="hl-tbl" data-a="table">ตารางข้อมูล (หลังบ้าน)</button>';
 }
