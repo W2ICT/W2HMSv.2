@@ -954,6 +954,15 @@ path.leaflet-interactive.boxhit{filter:drop-shadow(0 0 1.5px #fff) drop-shadow(0
 body.hmode #hsearch{display:flex}
 body.hmode #hlegend{display:block}
 body.hmode #rpanel:not([hidden]){display:flex}
+body.hmode.rp-off #rpanel{display:none}
+/* ปุ่มแสดง/ซ่อนแถบขวา — วางข้างแถบ (ตำแหน่งคำนวณใน JS) · เมนูหัวขวา (.pop) ต้องอยู่เหนือแถบเสมอ ไม่ถูกบัง */
+#rp-tab{display:none;position:fixed;z-index:1001;border:0;color:var(--fg);padding:0;width:38px;height:38px;border-radius:10px;cursor:pointer;place-items:center}
+body.hmode #rp-tab{display:grid}
+#rp-tab svg{display:block}
+#rp-tab .rp-chev{transform-box:fill-box;transform-origin:center}
+body.rp-off #rp-tab .rp-chev{transform:scaleX(-1)}
+body.hlocked #rp-tab{visibility:hidden}
+body.hmode .pop{z-index:1100}
 body.hmode #tools,body.hmode #search,body.hmode #panel,body.hmode #xform,body.hmode #drawbar{display:none!important}
 body.hmode .leaflet-overlay-pane path:not(.room-poly):not(.street-poly){pointer-events:none!important}
 body.hmode .leaflet-marker-pane .leaflet-marker-icon{pointer-events:none!important}
@@ -1453,6 +1462,7 @@ window.HOUSING_CONFIG = {
   <header id="rp-head"></header>
   <section id="rp-body"></section>
 </aside>
+<button id="rp-tab" class="glass" type="button" aria-expanded="true" aria-label="แสดง/ซ่อนแถบข้อมูลฝั่งขวา" title="ซ่อนแถบข้อมูล"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="3" stroke-width="1.8"/><path d="M15 4v16" stroke-width="1.8"/><path class="rp-chev" d="M8.5 9.5 11 12l-2.5 2.5"/></svg></button>
 <div id="hsync" hidden></div>
 <div id="hlogin" hidden>
   <form id="hl-form" class="glass" autocomplete="on" novalidate>
@@ -4604,7 +4614,7 @@ function drawStreets() {
   items.eachLayer(l => {
     const name = (props(l).name || '').trim();
     if (!/^(ซอย|ซ\.)/.test(name) || !['rectangle', 'polygon'].includes(kindOf(l))) return;
-    const poly = L.polygon(l.getLatLngs(), { renderer: hRend, className: 'street-poly', pmIgnore: true, bubblingMouseEvents: false, stroke: false, fill: true, fillOpacity: 0 });
+    const poly = L.polygon(l.getLatLngs(), { renderer: hRend, className: 'street-poly', pmIgnore: true, bubblingMouseEvents: true, stroke: false, fill: true, fillOpacity: 0 });
     poly.bindTooltip('<b>' + esc(name) + '</b>', { sticky: true, direction: 'top', opacity: 0.96, className: 'room-tip' });
     sovl.addLayer(poly); poly.bringToBack();
   });
@@ -4770,6 +4780,7 @@ function renderRoom() {
 
 function openRoom(id, tab, fly) {
   const r = ROOM[id]; if (!r) { toast('ไม่พบห้อง ' + id + ' ในผัง'); return; }
+  if (rpOff) setRpOff(false);
   const prev = curId; curId = id; if (tab) rtab = tab; else if (prev !== id) rtab = 'info';
   if (!fly) clearLock();                                      // คลิกห้องเอง = เลิกล็อกเป้าของการค้นหา
   if (prev) restyle(prev); restyle(id); updateMarks(); renderRoom();
@@ -4931,10 +4942,25 @@ function setHMode(on) {
   $('#hm-plan').classList.toggle('on', !hOn); $('#hm-admin').classList.toggle('on', hOn);
   if (hOn) {
     setMode('select'); select(null, false); closePanel(); closePops();
-    buildReg(); sovl.addTo(map); drawOverlay(); hovl.addTo(map); markL.addTo(map); updateLegend(); renderDash();
+    buildReg(); sovl.addTo(map); drawOverlay(); hovl.addTo(map); markL.addTo(map); updateLegend(); renderDash(); rpTabPos();
     if (!REG.length) toast('ยังไม่มีสี่เหลี่ยมคอลัมน์บนแผนที่ — นำเข้าไฟล์ผังในโหมดผังก่อน', 4200);
   } else { map.removeLayer(hovl); map.removeLayer(sovl); map.removeLayer(markL); lockIds = []; lockPt = null; curId = null; $('#rpanel').hidden = true; $('#hres').hidden = true; }
 }
+/* แถบขวา แสดง/ซ่อน (จำค่าไว้) — เลือกห้อง/ค้นหาห้อง = เปิดแถบให้เองเพื่อให้เห็นการ์ดห้อง */
+let rpOff = !!store.get('rpoff', false);
+function rpTabPos() {
+  const t = $('#rp-tab'), p = rpEl(), g = 12, off = document.body.classList.contains('rp-off');
+  t.title = off ? 'แสดงแถบข้อมูล' : 'ซ่อนแถบข้อมูล'; t.setAttribute('aria-expanded', String(!off));
+  const r = p.getBoundingClientRect(), top = Math.round(parseFloat(getComputedStyle(p).top) || 66);
+  if (off || !r.width) { t.style.top = top + 'px'; t.style.right = g + 'px'; return; }
+  if (r.width > innerWidth * 0.6) { t.style.top = Math.max(8, r.top - 44) + 'px'; t.style.right = g + 'px'; return; } // จอแคบ: แถบเป็นแผงล่าง → ปุ่มอยู่เหนือแผง
+  t.style.top = Math.round(r.top) + 'px'; t.style.right = Math.round(innerWidth - r.left + 6) + 'px';
+}
+function setRpOff(v) { rpOff = v; store.set('rpoff', v); document.body.classList.toggle('rp-off', v); rpTabPos(); }
+$('#rp-tab').addEventListener('click', () => setRpOff(!rpOff));
+document.body.classList.toggle('rp-off', rpOff);
+new ResizeObserver(rpTabPos).observe($('#rpanel')); window.addEventListener('resize', rpTabPos);
+map.on('click', () => { if (hOn && (curId || lockIds.length)) renderDash(); }); // คลิกที่ว่างบนแผนที่ = ปลดห้องที่เลือก/ล็อกเป้า (คลิกห้องหยุด event ไว้แล้ว จึงไม่มาถึงตรงนี้)
 $('#hm-plan').addEventListener('click', () => setHMode(false));
 $('#hm-admin').addEventListener('click', () => setHMode(true));
 $('#rpanel').addEventListener('click', e => { const b = e.target.closest('[data-a]'); if (b && !b.disabled) hAct(b.dataset.a, b); });
