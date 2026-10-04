@@ -1437,10 +1437,10 @@ body.hviewer #b-import,body.hviewer #b-export,body.hviewer #b-undo,body.hviewer 
 <script>/* ค่าเชื่อมต่อ Firebase (ข้อมูลสาธารณะโดยออกแบบ — ความปลอดภัยมาจาก Authentication + Firestore Rules) ห้ามใส่รหัสผ่านที่นี่ · ลบบล็อกนี้ = โหมดเครื่องเดียว */
 window.HOUSING_CONFIG = {
   firebase: {
-    apiKey: 'AIzaSyAO6Q_8X-VwHopaCUKl2aEQrTACiVMAuL0',
-    authDomain: 'mapbuilding-8e981.firebaseapp.com',
-    projectId: 'mapbuilding-8e981',
-    appId: '1:110310656756:web:438bd87afc4f861436aca1',
+    apiKey: 'AIzaSyB2rA_XPDquJPHvXu-j_W9wZbbxMXBJbD4',
+    authDomain: 'bn2-housing.firebaseapp.com',
+    projectId: 'bn2-housing',
+    appId: '1:617754743348:web:1316f6ee2136ff985af061',
   },
   emails: { viewer: 'viewer@housing.bn2.app', admin: 'admin@housing.bn2.app' },
   idleMinutes: 30,
@@ -1559,8 +1559,8 @@ const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const store = {
-  get(k, d) { try { const v = localStorage.getItem('gisdraw.' + k); return v ? JSON.parse(v) : d; } catch { return d; } },
-  set(k, v) { try { localStorage.setItem('gisdraw.' + k, JSON.stringify(v)); } catch { /* quota / private mode */ } },
+  get(k, d) { try { const v = localStorage.getItem('hms3.' + k); return v ? JSON.parse(v) : d; } catch { return d; } },
+  set(k, v) { try { localStorage.setItem('hms3.' + k, JSON.stringify(v)); } catch { /* quota / private mode */ } },
 };
 const debounce = (fn, ms) => { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; };
 const rad = d => d * Math.PI / 180, deg = r => r * 180 / Math.PI;
@@ -4505,7 +4505,7 @@ const HData = (() => {
     remoteSet(id, rec) { if (rec) rooms[id] = rec; else delete rooms[id]; emit(id); }, // รับจากเซิร์ฟเวอร์ (ไม่ส่งกลับ)
     remoteLoad(obj) { rooms = obj || {}; emit(null); },
     setRemote(on) { remote = !!on; },
-    wipeLocal() { try { localStorage.removeItem('gisdraw.housing'); localStorage.removeItem('gisdraw.housing.bak'); } catch { /* ignore */ } }, // ลบสำเนาข้อมูลบุคคลในเครื่อง (หลังโหลดจากเซิร์ฟเวอร์ได้แล้ว)
+    wipeLocal() { try { localStorage.removeItem('hms3.housing'); localStorage.removeItem('hms3.housing.bak'); } catch { /* ignore */ } }, // ลบสำเนาข้อมูลบุคคลในเครื่อง (หลังโหลดจากเซิร์ฟเวอร์ได้แล้ว)
     get remote() { return remote; },
     on: f => subs.push(f),
     use(a) { adapter = a; },
@@ -5461,7 +5461,7 @@ Object.assign(window.__housing, { hdOpenDash, hdClose, hdCollect });
     goEl.disabled = true; say('กำลังตรวจสอบ…'); store.set('lastRole', picked);
     try {
       if (fbCfg) { await auth.signInWithEmailAndPassword(EMAIL[picked], pw); /* onAuthStateChanged จะเรียก enter() */ pwEl.value = ''; return; }
-      if (await checkLocal(picked, pw)) { pwEl.value = ''; fails = 0; sessionStorage.setItem('gisdraw.hauth', picked); enter(picked); return; }
+      if (await checkLocal(picked, pw)) { pwEl.value = ''; fails = 0; sessionStorage.setItem('hms3.hauth', picked); enter(picked); return; }
       fails++; lockUntil = fails >= 5 ? Date.now() + Math.min(60000, 5000 * 2 ** (fails - 5)) : 0; say('รหัสผ่านไม่ถูกต้อง', true);
     } catch (err) { fails++; say(authErr(err), true); }
     pwEl.select(); goEl.disabled = false;
@@ -5477,7 +5477,7 @@ Object.assign(window.__housing, { hdOpenDash, hdClose, hdCollect });
       const wait = lockUntil - Date.now(); if (wait > 0) { say('ลองผิดหลายครั้ง — รออีก ' + Math.ceil(wait / 1000) + ' วินาที', true); return; }
       const code = $('#hl-devcode').value; if (!code) return;
       try {
-        if (await checkLocal('dev', code)) { $('#hl-devcode').value = ''; fails = 0; sessionStorage.setItem('gisdraw.hauth', 'admin'); sessionStorage.setItem('gisdraw.hdev', '1'); enter('admin'); return; }
+        if (await checkLocal('dev', code)) { $('#hl-devcode').value = ''; fails = 0; sessionStorage.setItem('hms3.hauth', 'admin'); sessionStorage.setItem('hms3.hdev', '1'); enter('admin'); return; }
         fails++; lockUntil = fails >= 5 ? Date.now() + Math.min(60000, 5000 * 2 ** (fails - 5)) : 0; say('รหัส DEV ไม่ถูกต้อง', true); $('#hl-devcode').select();
       } catch (err) { say(authErr(err), true); }
     };
@@ -5495,14 +5495,14 @@ Object.assign(window.__housing, { hdOpenDash, hdClose, hdCollect });
       role = null; if (fbCfg) { try { await auth.signOut(); } catch { /* ignore */ } } entering = false;
       showForm(/permission|insufficient/i.test(String(err && (err.code || err.message))) ? 'บัญชีนี้ไม่มีสิทธิ์อ่านข้อมูล (ตรวจ Firestore Rules)' : 'โหลดข้อมูลไม่สำเร็จ: ' + ((err && err.message) || err)); return;
     }
-    window.__housingAuth = { active: true, role: r, who: () => (sessionStorage.getItem('gisdraw.hdev') ? 'DEV · ' : '') + ROLE_TH[r] + (user && user.email ? ' · ' + user.email : ''), firebase: !!fbCfg, logout, uploadLayout, showAudit };
+    window.__housingAuth = { active: true, role: r, who: () => (sessionStorage.getItem('hms3.hdev') ? 'DEV · ' : '') + ROLE_TH[r] + (user && user.email ? ' · ' + user.email : ''), firebase: !!fbCfg, logout, uploadLayout, showAudit };
     loginEl.hidden = true; document.body.classList.remove('hlocked'); document.body.classList.toggle('hviewer', r === 'viewer');
     if (r === 'admin') API.setHMode(store.get('hmode', true)); else API.forceAdminMode(); // ผู้ชมไม่เห็นโหมดแก้ผัง
     API.rebuild(); startIdle();
   }
   async function logout() {
     if (Object.keys(pending).length && !confirm('ยังมีข้อมูลค้างส่ง — ออกจากระบบจะสูญหาย ดำเนินการ ?')) return;
-    sessionStorage.removeItem('gisdraw.hauth'); sessionStorage.removeItem('gisdraw.hdev'); if (fbCfg && auth) { try { await auth.signOut(); } catch { /* ignore */ } } location.reload();
+    sessionStorage.removeItem('hms3.hauth'); sessionStorage.removeItem('hms3.hdev'); if (fbCfg && auth) { try { await auth.signOut(); } catch { /* ignore */ } } location.reload();
   }
   let idleT = 0; // ออกจากระบบอัตโนมัติเมื่อไม่ได้ใช้งาน (นาที · ตั้ง idleMinutes ใน housing-config.js · 0 = ปิด)
   function startIdle() {
@@ -5636,7 +5636,7 @@ Object.assign(window.__housing, { hdOpenDash, hdClose, hdCollect });
       });
     }).catch(e => { lock(); form.hidden = true; say(e.message || String(e), true); });
   } else {
-    const r = sessionStorage.getItem('gisdraw.hauth'); if (r && LOC[r]) enter(r); else showForm();
+    const r = sessionStorage.getItem('hms3.hauth'); if (r && LOC[r]) enter(r); else showForm();
   }
 })();
 /* ───────────── ป้ายชื่อเขต ─────────────
